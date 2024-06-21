@@ -2,6 +2,6 @@
 
 This project has three file. 
 
-index.html
-script.js
-data.js
+1. index.html
+2. script.js
+3. data.js
