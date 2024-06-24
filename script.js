@@ -112,6 +112,9 @@ function initializeGraph(data) {
         node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
+    // Initial sidebar message
+    d3.select('#sidebar').html('<p>Click a node to see more details</p>');
+
     // Drag functionality
     function drag(simulation) {
         function dragstarted(event, d) {
@@ -210,7 +213,6 @@ function initializeGraph(data) {
         });
 
         if (selectedKeywords.length > 1) {
-            //sidebar.append('h3').text('Co-occurrence Count');
             sidebar.append('p').text(`Co-occurrence of {${selectedKeywords.join(', ')}}: ${coOccurrenceCount}`);
         }
 
@@ -218,16 +220,15 @@ function initializeGraph(data) {
             sidebar.append('p').text('No sentences to show');
         } else {
             sidebar.append('h3').text('Sentences');
-            const list = sidebar.append('ol');
+            const table = sidebar.append('table'); // Use table instead of ul
             const startIndex = (page - 1) * itemsPerPage;
             const endIndex = Math.min(startIndex + itemsPerPage, matchedSentences.length);
 
-            matchedSentences.slice(startIndex, endIndex).forEach((d, i) => {
-                const highlightedSentence = d.sentence
-                    .split(' ')
-                    .map(token => keywordSet.has(token.toLowerCase()) ? `<span class="keyword">${token}</span>` : token)
-                    .join(' ');
-                list.append('li').html(highlightedSentence);
+            matchedSentences.slice(startIndex, endIndex).forEach(d => {
+                const highlightedSentence = highlightKeywords(d.sentence, selectedKeywords);
+                const row = table.append('tr');
+                row.append('td').text(`${sentences.indexOf(d) + 1}.`);
+                row.append('td').html(highlightedSentence);
             });
 
             const pageCount = Math.ceil(matchedSentences.length / itemsPerPage);
@@ -269,5 +270,53 @@ function initializeGraph(data) {
         // Update the links and sidebar
         updateLinks();
         updateSidebar(getSelectedKeywords(), sentences, 1);
+    }
+
+    function highlightKeywords(sentence, keywords) {
+        let highlightedSentence = sentence;
+        keywords.forEach(keyword => {
+            const words = keyword.split(/\s+/); // Split multi-word keywords
+            words.forEach(word => {
+                const closestMatch = findClosestMatch(sentence, word);
+                const regex = new RegExp(`\\b${closestMatch}\\b`, 'gi');
+                highlightedSentence = highlightedSentence.replace(regex, match => `<span class="keyword">${match}</span>`);
+            });
+        });
+        return highlightedSentence;
+    }
+
+    function findClosestMatch(sentence, keyword) {
+        const words = sentence.split(/\s+/);
+        let closestWord = words[0];
+        let minDistance = editDistance(keyword.toLowerCase(), words[0].toLowerCase());
+
+        for (const word of words) {
+            const distance = editDistance(keyword.toLowerCase(), word.toLowerCase());
+            if (distance < minDistance) {
+                closestWord = word;
+                minDistance = distance;
+            }
+        }
+        return closestWord;
+    }
+
+    function editDistance(a, b) {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) {
+            matrix[i] = [i];
+        }
+        for (let j = 0; j <= a.length; j++) {
+            matrix[0][j] = j;
+        }
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+                }
+            }
+        }
+        return matrix[b.length][a.length];
     }
 }
