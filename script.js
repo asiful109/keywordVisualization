@@ -278,7 +278,7 @@ function initializeGraph(data) {
             const words = keyword.split(/\s+/); // Split multi-word keywords
             words.forEach(word => {
                 const closestMatch = findClosestMatch(sentence, word);
-                const regex = new RegExp(`\\b${closestMatch}\\b`, 'gi');
+                const regex = new RegExp(`\\b${escapeRegExp(closestMatch)}\\b`, 'gi');
                 highlightedSentence = highlightedSentence.replace(regex, match => `<span class="keyword">${match}</span>`);
             });
         });
@@ -286,7 +286,7 @@ function initializeGraph(data) {
     }
 
     function findClosestMatch(sentence, keyword) {
-        const words = sentence.split(/\s+/);
+        const words = sentence.split(/\s+/).map(word => word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")); // Clean punctuation
         let closestWord = words[0];
         let minDistance = editDistance(keyword.toLowerCase(), words[0].toLowerCase());
 
@@ -318,5 +318,9 @@ function initializeGraph(data) {
             }
         }
         return matrix[b.length][a.length];
+    }
+
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
     }
 }
