@@ -7,41 +7,55 @@ function initializeGraph(data) {
 
     // Calculate keyword frequencies
     const wordDocCounts = {};
+    const namedEntities = new Set();
+    
     sentences.forEach(d => {
-        const keywords = d.keywords;
-        new Set(keywords).forEach(keyword => {
-            wordDocCounts[keyword] = (wordDocCounts[keyword] || 0) + 1;
+        d.keywords.forEach(k => {
+            if (k.type === 'named entity') {
+                namedEntities.add(k.text);
+            }
+            wordDocCounts[k.text] = (wordDocCounts[k.text] || 0) + 1;
         });
     });
 
-    // Get top 50% keywords based on frequency
-    const sortedKeywords = Object.entries(wordDocCounts).sort((a, b) => b[1] - a[1]);
-    const topKeywords = sortedKeywords.slice(0, Math.ceil(sortedKeywords.length / 2)).map(([keyword]) => keyword);
+    // Separate named entities from other keywords
+    const namedEntitiesArray = Array.from(namedEntities);
+    const otherKeywordsArray = Object.entries(wordDocCounts)
+        .filter(([keyword]) => !namedEntities.has(keyword))
+        .sort((a, b) => b[1] - a[1]);
+
+    // Get top 30% of other keywords based on frequency
+    const topOtherKeywords = otherKeywordsArray
+        .slice(0, Math.ceil(otherKeywordsArray.length*0.3))
+        .map(([keyword]) => keyword);
+
+    // Combine named entities and top other keywords
+    const topKeywords = namedEntitiesArray.concat(topOtherKeywords);
 
     // Build graph data
     const nodes = topKeywords.map(keyword => ({ id: keyword, frequency: wordDocCounts[keyword] }));
     const links = [];
-    const linkCounts = {};
+    const linkCounts = new Map();
 
     sentences.forEach(d => {
-        const sentenceKeywords = [...new Set(d.keywords.filter(keyword => topKeywords.includes(keyword)))];
+        const sentenceKeywords = [...new Set(d.keywords.filter(keyword => topKeywords.includes(keyword.text)).map(k => k.text))];
         for (let i = 0; i < sentenceKeywords.length; i++) {
             for (let j = i + 1; j < sentenceKeywords.length; j++) {
-                const pair = [sentenceKeywords[i], sentenceKeywords[j]].sort().join('|');
-                linkCounts[pair] = (linkCounts[pair] || 0) + 1;
+                const pair = JSON.stringify([sentenceKeywords[i], sentenceKeywords[j]].sort());
+                linkCounts.set(pair, (linkCounts.get(pair) || 0) + 1);
             }
         }
     });
 
-    Object.entries(linkCounts).forEach(([pair, count]) => {
-        const [source, target] = pair.split('|');
+    linkCounts.forEach((count, pair) => {
+        const [source, target] = JSON.parse(pair);
         links.push({ source, target, count });
     });
 
     // Scale for font sizes based on keyword frequency
     const fontSizeScale = d3.scaleLinear()
         .domain(d3.extent(nodes, d => d.frequency))
-        .range([10, 40]);  // Adjust range for readability
+        .range([10, 60]);  // Adjust range for readability
 
     // Scale for link stroke width based on co-occurrence count
     const strokeWidthScale = d3.scaleLinear()
@@ -185,7 +199,7 @@ function initializeGraph(data) {
 
         const keywordSet = new Set(selectedKeywords.map(kw => kw.toLowerCase()));
         const matchedSentences = sentences.filter(d => {
-            const tokens = new Set(d.keywords.map(kw => kw.toLowerCase()));
+            const tokens = new Set(d.keywords.map(kw => kw.text.toLowerCase()));
             return [...keywordSet].every(kw => tokens.has(kw));
         });
 
@@ -225,10 +239,10 @@ function initializeGraph(data) {
             const endIndex = Math.min(startIndex + itemsPerPage, matchedSentences.length);
 
             matchedSentences.slice(startIndex, endIndex).forEach(d => {
-                const highlightedSentence = highlightKeywords(d.sentence, selectedKeywords);
+                const highlightedSentence = highlightKeywords(d.sentence, d.keywords, selectedKeywords);
                 const row = table.append('tr');
-                row.append('td').text(`${sentences.indexOf(d) + 1}.`);
-                row.append('td').html(highlightedSentence);
+                row.append('td').text(`${sentences.indexOf(d) + 1}.`).style('text-align', 'right').style('padding-right', '5px');
+                row.append('td').html(highlightedSentence).style('padding-left', '5px');
             });
 
             const pageCount = Math.ceil(matchedSentences.length / itemsPerPage);
@@ -272,55 +286,28 @@ function initializeGraph(data) {
         updateSidebar(getSelectedKeywords(), sentences, 1);
     }
 
-    function highlightKeywords(sentence, keywords) {
-        let highlightedSentence = sentence;
+    function highlightKeywords(sentence, keywords, selectedKeywords) {
+        let highlightedSentence = '';
+        let currentIndex = 0;
+
+        keywords.sort((a, b) => a.start - b.start); // Sort keywords by start position
+
         keywords.forEach(keyword => {
-            const words = keyword.split(/\s+/); // Split multi-word keywords
-            words.forEach(word => {
-                const closestMatch = findClosestMatch(sentence, word);
-                const regex = new RegExp(`\\b${escapeRegExp(closestMatch)}\\b`, 'gi');
-                highlightedSentence = highlightedSentence.replace(regex, match => `<span class="keyword">${match}</span>`);
-            });
+            if (selectedKeywords.includes(keyword.text)) {
+                // Append the part of the sentence before the keyword
+                highlightedSentence += sentence.substring(currentIndex, keyword.start);
+
+                // Append the highlighted keyword
+                highlightedSentence += `<span class="keyword">${sentence.substring(keyword.start, keyword.stop)}</span>`;
+
+                // Update the current index
+                currentIndex = keyword.stop;
+            }
         });
+
+        // Append the rest of the sentence after the last keyword
+        highlightedSentence += sentence.substring(currentIndex);
+
         return highlightedSentence;
-    }
-
-    function findClosestMatch(sentence, keyword) {
-        const words = sentence.split(/\s+/).map(word => word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")); // Clean punctuation
-        let closestWord = words[0];
-        let minDistance = editDistance(keyword.toLowerCase(), words[0].toLowerCase());
-
-        for (const word of words) {
-            const distance = editDistance(keyword.toLowerCase(), word.toLowerCase());
-            if (distance < minDistance) {
-                closestWord = word;
-                minDistance = distance;
-            }
-        }
-        return closestWord;
-    }
-
-    function editDistance(a, b) {
-        const matrix = [];
-        for (let i = 0; i <= b.length; i++) {
-            matrix[i] = [i];
-        }
-        for (let j = 0; j <= a.length; j++) {
-            matrix[0][j] = j;
-        }
-        for (let i = 1; i <= b.length; i++) {
-            for (let j = 1; j <= a.length; j++) {
-                if (b.charAt(i - 1) === a.charAt(j - 1)) {
-                    matrix[i][j] = matrix[i - 1][j - 1];
-                } else {
-                    matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
-                }
-            }
-        }
-        return matrix[b.length][a.length];
-    }
-
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
     }
 }
