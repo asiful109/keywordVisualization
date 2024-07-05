@@ -1,36 +1,64 @@
 document.addEventListener("DOMContentLoaded", function() {
-    initializeGraph(data);
+    const uniqueKeywords = Array.from(data.reduce((acc, item) => {
+        item.keywords.forEach(k => acc.add(k.text));
+        return acc;
+    }, new Set()));
+    
+    const defaultKeywordCount = Math.min(150, Math.ceil(uniqueKeywords.length * 0.5));
+    initializeGraph(data, defaultKeywordCount);
+
+    document.getElementById('updateGraph').addEventListener('click', function() {
+        let keywordCount = parseInt(document.getElementById('keywordCount').value, 10);
+        if (isNaN(keywordCount) || keywordCount <= 0) {
+            keywordCount = defaultKeywordCount;
+        }
+        document.getElementById('keywordCount').value = keywordCount;
+        initializeGraph(data, keywordCount);
+    });
 });
 
-function initializeGraph(data) {
+function initializeGraph(data, keywordCount) {
     const sentences = data;
 
-    // Calculate keyword frequencies
+    // Calculate document frequencies and initialize TF-IDF score storage
     const wordDocCounts = {};
-    const namedEntities = new Set();
-    
+    const termFreqs = {};
+    const totalDocuments = sentences.length;
+
+    // Step 1: Calculate document frequency (DF) for each keyword
     sentences.forEach(d => {
+        const keywordSet = new Set();
         d.keywords.forEach(k => {
-            if (k.type === 'named entity') {
-                namedEntities.add(k.text);
+            if (!keywordSet.has(k.text)) {
+                wordDocCounts[k.text] = (wordDocCounts[k.text] || 0) + 1;
+                keywordSet.add(k.text);
             }
-            wordDocCounts[k.text] = (wordDocCounts[k.text] || 0) + 1;
         });
     });
 
-    // Separate named entities from other keywords
-    const namedEntitiesArray = Array.from(namedEntities);
-    const otherKeywordsArray = Object.entries(wordDocCounts)
-        .filter(([keyword]) => !namedEntities.has(keyword))
-        .sort((a, b) => b[1] - a[1]);
+    // Step 2: Calculate term frequency (TF) for each keyword across all sentences
+    sentences.forEach(d => {
+        d.keywords.forEach(k => {
+            termFreqs[k.text] = (termFreqs[k.text] || 0) + 1;
+        });
+    });
 
-    // Get top 30% of other keywords based on frequency
-    const topOtherKeywords = otherKeywordsArray
-        .slice(0, Math.ceil(otherKeywordsArray.length*0.3))
-        .map(([keyword]) => keyword);
+    // Step 3: Calculate TF-IDF scores for each keyword
+    const tfidfScores = {};
+    Object.keys(termFreqs).forEach(keyword => {
+        const tf = termFreqs[keyword] / totalDocuments;
+        const idf = Math.log(totalDocuments / (wordDocCounts[keyword] || 1));
+        tfidfScores[keyword] = tf * idf;
+    });
 
-    // Combine named entities and top other keywords
-    const topKeywords = namedEntitiesArray.concat(topOtherKeywords);
+    // Sort keywords based on combined TF-IDF scores in descending order
+    const sortedKeywords = Object.entries(tfidfScores).sort((a, b) => b[1] - a[1]);
+
+    // Calculate the number of keywords to select
+    const numKeywordsToSelect = Math.min(keywordCount, sortedKeywords.length);
+
+    // Get top keywords based on combined TF-IDF scores
+    const topKeywords = sortedKeywords.slice(0, numKeywordsToSelect).map(([keyword]) => keyword);
 
     // Build graph data
     const nodes = topKeywords.map(keyword => ({ id: keyword, frequency: wordDocCounts[keyword] }));
@@ -61,6 +89,9 @@ function initializeGraph(data) {
     const strokeWidthScale = d3.scaleLinear()
         .domain(d3.extent(links, d => d.count))
         .range([0.5, 10]);
+
+    // Clear previous graph
+    d3.select('#graph').selectAll('*').remove();
 
     // Draw graph using D3.js
     const width = document.getElementById('graph').clientWidth;
@@ -127,7 +158,7 @@ function initializeGraph(data) {
     });
 
     // Initial sidebar message
-    d3.select('#sidebar').html('<p>Click a node to see more details</p>');
+    d3.select('#details').html('<p>Click a node to see more details</p>');
 
     // Drag functionality
     function drag(simulation) {
@@ -190,7 +221,7 @@ function initializeGraph(data) {
     // Sidebar update functionality with pagination
     function updateSidebar(selectedKeywords, sentences, page) {
         const itemsPerPage = 10;
-        const sidebar = d3.select('#sidebar').html('');
+        const sidebar = d3.select('#details').html('');
 
         if (selectedKeywords.length === 0) {
             sidebar.text('Click a node to see more details');
@@ -246,6 +277,16 @@ function initializeGraph(data) {
             });
 
             const pageCount = Math.ceil(matchedSentences.length / itemsPerPage);
+            const maxPagesToShow = 5;
+            const halfPagesToShow = Math.floor(maxPagesToShow / 2);
+            let startPage = Math.max(1, page - halfPagesToShow);
+            let endPage = Math.min(pageCount, page + halfPagesToShow);
+
+            if (page <= halfPagesToShow) {
+                endPage = Math.min(pageCount, maxPagesToShow);
+            } else if (page + halfPagesToShow >= pageCount) {
+                startPage = Math.max(1, pageCount - maxPagesToShow + 1);
+            }
 
             if (pageCount > 1) {
                 const pagination = sidebar.append('div').attr('class', 'pagination');
@@ -255,7 +296,7 @@ function initializeGraph(data) {
                         .text('«')
                         .on('click', () => updateSidebar(selectedKeywords, sentences, page - 1));
                 }
-                for (let i = 1; i <= pageCount; i++) {
+                for (let i = startPage; i <= endPage; i++) {
                     pagination.append('a')
                         .attr('href', '#')
                         .classed('active', i === page)
