@@ -11,16 +11,70 @@ This project visualizes a graph based on the frequency of keywords from a set of
 Users can input sentences and their tokenized keywords into the data.js file. Each sentence and its corresponding keywords should be represented as a JSON object with the following format:
 
 ```
-const data = [
-    {
-        "sentence": "Ghana is located in West Africa and is bordered by the Ivory Coast , Burkina Faso , and Togo .",
-        "keywords": ["ghana", "locate", "west africa", "border", "ivory coast", "burkina faso", "togo"]
-    },
-    {
-        "sentence": "Accra is the capital and largest city of Ghana .",
-        "keywords": ["accra", "capital", "largest", "city", "ghana"]
-    }
-]
+const data = [ {
+  "sentence" : "Since then, many other operations have continued to target cattle traders as they return from Karamoja with cattle bought from the cattle markets.",
+  "keywords" : [ {
+    "type" : "lemma",
+    "text" : "operation",
+    "start" : 23,
+    "stop" : 33
+  }, {
+    "type" : "lemma",
+    "text" : "continue",
+    "start" : 39,
+    "stop" : 48
+  }, {
+    "type" : "lemma",
+    "text" : "target",
+    "start" : 52,
+    "stop" : 58
+  }, {
+    "type" : "lemma",
+    "text" : "cattle",
+    "start" : 59,
+    "stop" : 65
+  }, {
+    "type" : "lemma",
+    "text" : "trader",
+    "start" : 66,
+    "stop" : 73
+  }, {
+    "type" : "lemma",
+    "text" : "return",
+    "start" : 82,
+    "stop" : 88
+  }, {
+    "type" : "named entity",
+    "text" : "karamoja",
+    "start" : 94,
+    "stop" : 102
+  }, {
+    "type" : "lemma",
+    "text" : "cattle",
+    "start" : 108,
+    "stop" : 114
+  }, {
+    "type" : "lemma",
+    "text" : "buy",
+    "start" : 115,
+    "stop" : 121
+  }, {
+    "type" : "lemma",
+    "text" : "cattle",
+    "start" : 131,
+    "stop" : 137
+  }, {
+    "type" : "lemma",
+    "text" : "market",
+    "start" : 138,
+    "stop" : 145
+  } ]
+},
+
+{
+    //Add the second sentence same way
+}
+];
 ```
 
 For a better visualization, perform the following steps before saving the keywords:
