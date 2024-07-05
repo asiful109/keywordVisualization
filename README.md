@@ -72,7 +72,7 @@ const data = [ {
 },
 
 {
-    //Add the second sentence same way
+    //Add the rest of the sentence using the same template as first sentences
 }
 ];
 ```
