@@ -351,4 +351,190 @@ function initializeGraph(data, keywordCount) {
 
         return highlightedSentence;
     }
+
+
+
+
+
+
+
+
+    // Get references to the buttons
+    const drawButton = document.getElementById('drawModeBtn');
+    const zoomButton = document.getElementById('zoomModeBtn');
+
+
+    let mode = 'zoom'; // Default mode
+    let isDrawing = false;
+    let rect, startX, startY;
+    let currentTransform = d3.zoomIdentity; // Store the current zoom transform
+
+    // Make the mode buttons visible
+    drawButton.style.visibility = 'visible';
+    zoomButton.style.visibility = 'visible';
+
+    // Set active button and mode
+    function setActiveButton(activeButton) {
+        drawButton.classList.remove('active');
+        zoomButton.classList.remove('active');
+        activeButton.classList.add('active');
+    }
+
+    // Handle Draw Mode
+    drawButton.addEventListener('click', function() {
+        setActiveButton(drawButton);
+        mode = 'draw';
+        enableDrawMode();
+    });
+
+    // Handle Zoom Mode
+    zoomButton.addEventListener('click', function() {
+        setActiveButton(zoomButton);
+        mode = 'zoom';
+        enableZoomMode();
+    });
+
+    // Enable drawing mode (disable zoom)
+    function enableDrawMode() {
+        svg.on('.zoom', null); // Disable zoom and pan
+        svg.on('mousedown', startDrawing); // Enable drawing
+    }
+
+    // Enable zoom mode only (disable drawing)
+    function enableZoomMode() {
+        svg.call(zoomBehavior); // Enable zoom and pan
+        svg.on('mousedown', null); // Disable drawing
+        svg.on('mousemove', null);
+        svg.on('mouseup', null);
+    }
+
+    // Zoom behavior
+    const zoomBehavior = d3.zoom()
+        .scaleExtent([0.5, 5])
+        .on('zoom', function(event) {
+            currentTransform = event.transform; // Update the current zoom transform
+            g.attr('transform', currentTransform); // Apply zoom and pan
+        });
+
+    // Initialize in zoom mode
+    enableZoomMode();
+
+    // Start drawing the rectangle
+    function startDrawing(event) {
+        if (mode !== 'draw') return;
+
+        const [x, y] = d3.pointer(event, svg.node());
+        startX = currentTransform.invertX(x); // Apply inverse of zoom to get the original coordinates
+        startY = currentTransform.invertY(y);
+        rect = g.append('rect')
+            .attr('x', startX)
+            .attr('y', startY)
+            .attr('width', 0)
+            .attr('height', 0)
+            .attr('fill', 'rgba(0, 0, 255, 0.1)')
+            .attr('stroke', 'blue')
+            .attr('stroke-width', 1);
+        isDrawing = true;
+
+        svg.on('mousemove', continueDrawing);
+        svg.on('mouseup', finishDrawing);
+    }
+
+    // Continue drawing the rectangle as the mouse moves
+    function continueDrawing(event) {
+        if (!isDrawing) return;
+        const [x, y] = d3.pointer(event, svg.node());
+        const newX = currentTransform.invertX(x); // Apply inverse of zoom to get the original coordinates
+        const newY = currentTransform.invertY(y);
+        const width = Math.abs(newX - startX);
+        const height = Math.abs(newY - startY);
+        rect.attr('width', width).attr('height', height);
+        if (newX < startX) rect.attr('x', newX); // Adjust position if dragging left/up
+        if (newY < startY) rect.attr('y', newY);
+    }
+
+    // Finish drawing the rectangle and highlight nodes within it
+    function finishDrawing(event) {
+        if (!isDrawing) return;
+        isDrawing = false;
+
+        // Get rectangle dimensions in original (untransformed) coordinates
+        const rectX = parseFloat(rect.attr('x'));
+        const rectY = parseFloat(rect.attr('y'));
+        const rectWidth = parseFloat(rect.attr('width'));
+        const rectHeight = parseFloat(rect.attr('height'));
+
+        // Check which circles (nodes) are inside the rectangle
+        const selectedNodes = [];
+        d3.selectAll('circle').each(function(d) {
+            const [cx, cy] = [d.x, d.y]; // Coordinates in original space (before zoom)
+            if (cx >= rectX && cx <= rectX + rectWidth &&
+                cy >= rectY && cy <= rectY + rectHeight) {
+                selectedNodes.push(d);
+                d3.select(this).attr('fill', 'red'); // Highlight the node
+                d3.select(this.parentNode).classed('selected', true);
+            }
+        });
+
+        // Show export button if any nodes were selected
+        if (selectedNodes.length > 0) {
+            exportButton.style.visibility = 'visible'; // Show the export button
+            updateLinks();
+            updateSidebar(getSelectedKeywords(), sentences, 1);
+        }
+
+        // Remove the rectangle after selection
+        rect.remove();
+
+        // Remove drawing-related events
+        svg.on('mousemove', null);
+        svg.on('mouseup', null);
+    }
+
+    // Handle export button click
+    exportButton.addEventListener('click', function() {
+        const selectedSentenceIds = new Set(); // Use a Set to avoid duplicates
+
+        // Get all selected g elements and process them
+        d3.selectAll('g.selected').each(function() {
+            const gElement = d3.select(this);
+            const circle = gElement.select('circle');
+            const circleText = gElement.select('text').text().trim(); // Get the circle's text
+
+            // Search the dataset for matching keywords and collect sentence IDs
+            data.forEach(item => {
+                item.keywords.forEach(keyword => {
+                    if (keyword.text.toLowerCase() === circleText.toLowerCase()) {
+                        selectedSentenceIds.add(item.id); // Add the sentence ID to the set
+                    }
+                });
+            });
+        });
+
+        // Prepare the data for CSV export
+        const rows = [['ID']]; // Header for the CSV file
+        selectedSentenceIds.forEach(id => {
+            rows.push([id]); // Add each unique sentence ID
+        });
+
+        // Convert rows to CSV format
+        const csvContent = rows.map(e => e.join(",")).join("\n");
+
+        // Create a downloadable CSV file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "selected_sentences.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+
+
+
+
 }
+

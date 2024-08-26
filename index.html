@@ -8,11 +8,51 @@
     <style>
         #container {
             display: flex;
+            height: 100vh;
+        }
+    
+        /* Graph container takes the remaining space */
+        #graph-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
     
         #graph {
             flex: 1;
             border-right: 1px solid #ddd;
+            position: relative;
+        }
+    
+        #top-buttons {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10; /* Ensure the buttons are above the graph */
+        }
+
+        .mode-button{
+            visibility: hidden;
+        }
+    
+        .mode-button {
+            margin: 0 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    
+        .mode-button.active {
+            background-color: #0056b3; /* Highlighted color for the active button */
         }
     
         #sidebar {
@@ -22,9 +62,9 @@
             background-color: #f9f9f9;
             border-left: 1px solid #ddd;
             overflow-y: auto;
-            overflow-x: hidden; /* Hide horizontal scrollbar */
+            overflow-x: hidden;
             height: 100vh;
-            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+            box-sizing: border-box;
         }
     
         #sidebar h3 {
@@ -38,21 +78,21 @@
         #sidebar table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed; /* Fixed table layout */
+            table-layout: fixed;
         }
     
         #sidebar table td {
-            padding: 5px;  /* Add padding for spacing */
+            padding: 5px;
             vertical-align: top;
-            word-wrap: break-word; /* Ensure long words are wrapped */
-            box-sizing: border-box; /* Include padding in the element's width */
+            word-wrap: break-word;
+            box-sizing: border-box;
         }
     
         #sidebar table td:first-child {
-            width: 35px; /* Set a small fixed width for the first column */
-            text-align: right; /* Align the first column to the right */
-            white-space: nowrap; /* Ensure the content does not wrap */
-            padding-right: 10px; /* Add some padding to separate from the second column */
+            width: 35px;
+            text-align: right;
+            white-space: nowrap;
+            padding-right: 10px;
         }
     
         .keyword {
@@ -107,22 +147,30 @@
         .pagination a:hover:not(.active) {
             background-color: #ddd;
         }
+
     </style>
-    
-    
-    
 </head>
 <body>
     <div id="container">
-        <div id="graph"></div>
+        <div id="graph-container">
+            <!-- Top buttons centered within the graph -->
+            <div id="top-buttons">
+                <button class="mode-button active" id="zoomModeBtn">Zoom Mode</button> <!-- Zoom Mode is selected by default -->
+                <button class="mode-button" id="drawModeBtn">Draw Mode</button>    
+            </div>
+            <div id="graph"></div>
+        </div>
         <div id="sidebar">
             <h3>Keyword Graph</h3>
             <label for="keywordCount">Number of Keywords:</label>
             <input type="number" id="keywordCount" value="150">
             <button id="updateGraph">Update</button>
+            <br><br>
+            <button id="exportButton">Export Sentences Collection</button>
             <div id="details"></div>
         </div>
     </div>
+    
     <script src="data.js"></script>
     <script src="script.js"></script>
 </body>
