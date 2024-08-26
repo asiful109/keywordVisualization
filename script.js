@@ -438,6 +438,11 @@ function initializeGraph(data, keywordCount) {
 
         svg.on('mousemove', continueDrawing);
         svg.on('mouseup', finishDrawing);
+        window.addEventListener('mouseup', finishDrawing);
+        svg.on('mouseleave', edgeDrawing);  // Handle leaving the SVG
+        svg.on('mouseenter', resumeDrawing);  // Handle re-entering the SVG
+        
+     
     }
 
     // Continue drawing the rectangle as the mouse moves
@@ -452,6 +457,38 @@ function initializeGraph(data, keywordCount) {
         if (newX < startX) rect.attr('x', newX); // Adjust position if dragging left/up
         if (newY < startY) rect.attr('y', newY);
     }
+
+    // Handle when the mouse leaves the SVG
+    function edgeDrawing(event) {
+        if (!isDrawing) return;
+        const svgRect = svg.node().getBoundingClientRect();
+        let [x, y] = d3.pointer(event);
+    
+        // Clamp x and y based on where the mouse left the SVG
+        if (x < svgRect.left) x = svgRect.left;
+        if (x > svgRect.right) x = svgRect.right;
+        if (y < svgRect.top) y = svgRect.top;
+        if (y > svgRect.bottom) y = svgRect.bottom;
+    
+        const clampedX = currentTransform.invertX(x); // Inverse transform for X
+        const clampedY = currentTransform.invertY(y); // Inverse transform for Y
+    
+        // Update rectangle dimensions based on the clamped values
+        const width = Math.abs(clampedX - startX);
+        const height = Math.abs(clampedY - startY);
+    
+        rect.attr('width', width).attr('height', height);
+        if (clampedX < startX) rect.attr('x', clampedX); // Adjust position if dragging left/up
+        if (clampedY < startY) rect.attr('y', clampedY);
+    }
+
+    // Handle when the mouse re-enters the SVG, continue drawing
+    function resumeDrawing(event) {
+        if (!isDrawing) return;
+        svg.on('mousemove', continueDrawing);
+    }
+
+
 
     // Finish drawing the rectangle and highlight nodes within it
     function finishDrawing(event) {
@@ -489,6 +526,10 @@ function initializeGraph(data, keywordCount) {
         // Remove drawing-related events
         svg.on('mousemove', null);
         svg.on('mouseup', null);
+        svg.on('mouseleave', null); // Clean up the event listener
+        svg.on('mouseenter', null);  // Clean up the re-enter event listener
+        window.removeEventListener('mouseup', finishDrawing);  
+        
     }
 
     // Handle export button click
